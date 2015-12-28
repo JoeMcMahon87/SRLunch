@@ -1,22 +1,25 @@
 {
-  "intents": [
-    {
-      "intent": "GetFirstEventIntent",
-      "slots": [
+    "intents": [
         {
-          "name": "day",
-          "type": "AMAZON.DATE"
+            "intent": "GetMenuIntent",
+            "slots": [
+                {
+                    "name": "day",
+                    "type": "AMAZON.DATE"
+                }
+            ]
+        },
+        {
+            "intent": "GetNextMenuIntent"
+        },
+        {
+            "intent": "AMAZON.HelpIntent"
+        },
+        {
+            "intent": "AMAZON.StopIntent"
+        },
+        {
+            "intent": "AMAZON.CancelIntent"
         }
-      ]
-    },
-    {
-      "intent": "AMAZON.HelpIntent"
-    },
-    {
-      "intent": "AMAZON.StopIntent"
-    },
-    {
-      "intent": "AMAZON.CancelIntent"
-    }
-  ]
+    ]
 }

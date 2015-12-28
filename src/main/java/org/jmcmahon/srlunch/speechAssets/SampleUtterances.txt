@@ -1,7 +1,13 @@
-GetFirstEventIntent get entrees for {day}
-GetFirstEventIntent give me entrees for {day}
-GetFirstEventIntent what is being served on {day}
-GetFirstEventIntent {day}
+GetMenuIntent what is for lunch {day}
+GetMenuIntent what is being served on {day}
+GetMenuIntent for the menu on {day}
+GetMenuIntent {day}
+GetMenuIntent the menu for {day}
+
+GetNextMenuIntent yes
+GetNextMenuIntent yup
+GetNextMenuIntent sure
+GetNextMenuIntent yes please
 
 AMAZON.StopIntent no
 AMAZON.StopIntent nope

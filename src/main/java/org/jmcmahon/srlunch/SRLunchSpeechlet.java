@@ -14,7 +14,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.charset.Charset;
-import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -46,62 +45,26 @@ import com.amazonaws.util.json.JSONObject;
 import java.util.logging.Level;
 
 /**
- * This sample shows how to create a Lambda function for handling Alexa Skill requests that:
- * 
- * <ul>
- * <li><b>Web service</b>: communicate with an external web service to get events for specified days
- * in history (Wikipedia API)</li>
- * <li><b>Pagination</b>: after obtaining a list of events, read a small subset of events and wait
- * for user prompt to read the next subset of events by maintaining session state</li>
- * <p>
- * <li><b>Dialog and Session state</b>: Handles two models, both a one-shot ask and tell model, and
- * a multi-turn dialog model</li>
- * <li><b>SSML</b>: Using SSML tags to control how Alexa renders the text-to-speech</li>
- * </ul>
- * <p>
- * <h2>Examples</h2>
- * <p>
- * <b>One-shot model</b>
- * <p>
- * User: "Alexa, ask History Buff what happened on August thirtieth."
- * <p>
- * Alexa: "For August thirtieth, in 2003, [...] . Wanna go deeper in history?"
- * <p>
- * User: "No."
- * <p>
- * Alexa: "Good bye!"
- * <p>
- * 
- * <b>Dialog model</b>
- * <p>
- * User: "Alexa, open History Buff"
- * <p>
- * Alexa: "History Buff. What day do you want events for?"
- * <p>
- * User: "August thirtieth."
- * <p>
- * Alexa: "For August thirtieth, in 2003, [...] . Wanna go deeper in history?"
- * <p>
- * User: "Yes."
- * <p>
- * Alexa: "In 1995, Bosnian war [...] . Wanna go deeper in history?"
- * <p>
- * User: "No."
- * <p>
- * Alexa: "Good bye!"
- * <p>
+ * Queries the Sage Dining menu for Stone Ridge School and returns back
+ * the lunch menu options for a given day
  */
 public class SRLunchSpeechlet implements Speechlet {
     private static final Logger log = LoggerFactory.getLogger(SRLunchSpeechlet.class);
 
     /**
-     * URL for Sage Dining menu: http://www.sagedining.com/intranet/apps/mb/pubasynchhandler.php?unitId=S0073&mbMenuCardinality=1&_=1451222936630
+     * URL for Sage Dining menu
      */
     private static final String URL_PREFIX = "http://www.sagedining.com/intranet/apps/mb/pubasynchhandler.php?unitId=S0073&mbMenuCardinality=1&_=1451222936630";
     
     private static final SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
+    private static final SimpleDateFormat spokenFormat = new SimpleDateFormat("EEEEE MMMMM d yyyy");
+    
     
     private static final String SESSION_TEXT = "text";
+
+    private static final int LOWER_SCHOOL = 0;
+    
+    private static final int MIDDLE_SCHOOL = 1;
     /**
      * Constant defining session attribute key for the intent slot key for the date of events.
      */
@@ -153,8 +116,10 @@ public class SRLunchSpeechlet implements Speechlet {
         String intentName = intent.getName();
 
         if (null != intentName) switch (intentName) {
-            case "GetFirstEventIntent":
-                return handleFirstEventRequest(intent, session);
+            case "GetMenuIntent":
+                return handleMenuRequest(intent, session);
+            case "GetNextMenuIntent":
+                return handleNextMenuRequrest(intent, session);
             case "AMAZON.HelpIntent":
                 // Create the plain text output.
                 String speechOutput = "With Stone Ridge Lunch, you can get"
@@ -166,13 +131,6 @@ public class SRLunchSpeechlet implements Speechlet {
                 String repromptText = "Which day do you want?";
                 
                 return newAskResponse(speechOutput, false, repromptText, false);
-            case "AMAZON.StopIntent":
-            {
-                PlainTextOutputSpeech outputSpeech = new PlainTextOutputSpeech();
-                outputSpeech.setText("Goodbye");
-                
-                return SpeechletResponse.newTellResponse(outputSpeech);
-            }
             case "AMAZON.CancelIntent":
             {
                 PlainTextOutputSpeech outputSpeech = new PlainTextOutputSpeech();
@@ -225,14 +183,13 @@ public class SRLunchSpeechlet implements Speechlet {
      */
     private Calendar getCalendar(Intent intent) {
         Slot daySlot = intent.getSlot(SLOT_DAY);
-        Date date;
+        Date date = new Date();
         Calendar calendar = Calendar.getInstance();
         if (daySlot != null && daySlot.getValue() != null) {
-            DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
             try {
-                date = dateFormat.parse(daySlot.getValue());
-            } catch (ParseException e) {
-                date = new Date();
+                date = formatter.parse(daySlot.getValue());
+            } catch (ParseException ex) {
+                java.util.logging.Logger.getLogger(SRLunchSpeechlet.class.getName()).log(Level.SEVERE, null, ex);
             }
         } else {
             date = new Date();
@@ -242,8 +199,8 @@ public class SRLunchSpeechlet implements Speechlet {
     }
 
     /**
-     * Prepares the speech to reply to the user. Obtain events from Wikipedia for the date specified
-     * by the user (or for today's date, if no date is specified), and return those events in both
+     * Prepares the speech to reply to the user. Obtain menu from Sage Dining for the date specified
+     * by the user (or for today's date, if no date is specified), and return the info in both
      * speech and SimpleCard format.
      * 
      * @param intent
@@ -252,19 +209,34 @@ public class SRLunchSpeechlet implements Speechlet {
      *            the session object
      * @return SpeechletResponse object with voice/card response to return to the user
      */
-    private SpeechletResponse handleFirstEventRequest(Intent intent, Session session) {
-        SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd");
+    private SpeechletResponse handleMenuRequest(Intent intent, Session session) {
         Calendar calendar = getCalendar(intent);
         String month = MONTH_NAMES[calendar.get(Calendar.MONTH)];
-        String date = fmt.format(calendar.getTime());
-        java.util.logging.Logger.getLogger(SRLunchSpeechlet.class.getName()).log(Level.SEVERE, "Handling for {0}", date);
+        String date = formatter.format(calendar.getTime());
 
-        String speechPrefixContent = "<p>For " + month + " " + date + "</p> ";
-        String cardPrefixContent = "For " + month + " " + date + ", ";
-        String cardTitle = "Menu for " + month + " " + date;
-
-        ArrayList<String> entrees = getJsonMenuItemsFromSage(date);
+        String speechPrefixContent = "<p>Entrees for " + month + " " + date + "</p> ";
+        String cardPrefixContent = "Entrees for " + month + " " + date + ", ";
+        String cardTitle = "For " + month + " " + date;
+        ArrayList<String> entrees = new ArrayList<>();
         String speechOutput;
+        
+        try {
+            entrees = getJsonMenuItemsFromSage(date);
+        } catch (RuntimeException re) {
+            speechOutput = re.getMessage();
+
+            // Create the plain text output
+            SsmlOutputSpeech outputSpeech = new SsmlOutputSpeech();
+            outputSpeech.setSsml("<speak>" + speechOutput + "</speak>");
+            SimpleCard card = new SimpleCard();
+            card.setTitle(cardTitle);
+            card.setContent(speechOutput);
+            SpeechletResponse response = SpeechletResponse.newTellResponse(outputSpeech);
+            response.setCard(card);
+            
+            return response;
+        }
+
         if (entrees.isEmpty()) {
             speechOutput =
                     "There is a problem connecting to Sage Dining at this time."
@@ -288,6 +260,8 @@ public class SRLunchSpeechlet implements Speechlet {
                 cardOutputBuilder.append("\n");
             }
            
+            speechOutputBuilder.append(" Want more menu items?");
+            cardOutputBuilder.append(" Want more menu items?");
             speechOutput = speechOutputBuilder.toString();
 
             String repromptText =
@@ -302,8 +276,6 @@ public class SRLunchSpeechlet implements Speechlet {
             card.setTitle(cardTitle);
             card.setContent(cardOutputBuilder.toString());
 
-            // After reading the first 3 events, set the count to 3 and add the events
-            // to the session attributes
             session.setAttribute(SESSION_TEXT, entrees);
 
             SpeechletResponse response = newAskResponse("<speak>" + speechOutput + "</speak>", true, repromptText, false);
@@ -362,17 +334,26 @@ public class SRLunchSpeechlet implements Speechlet {
         ArrayList<String> retval = new ArrayList<>();
         try {
             JSONObject obj = new JSONObject(text);
-            Long menuFirstDate = ((JSONObject)obj.getJSONArray("menuList").get(1)).getLong("menuFirstDate");
+            Long menuFirstDate = ((JSONObject)obj.getJSONArray("menuList").get(MIDDLE_SCHOOL)).getLong("menuFirstDate");
+            // Get the cycle length from the JSON
+            int cycleLength = 12;
             int index = calculateOffset(menuFirstDate, date);
             int index1 = (int)(index / 10) + 1;
             int index2 = (int)(index % 10);
-            JSONArray items = obj.getJSONObject("menu").getJSONObject("menu").getJSONArray("items");
-            JSONArray days = items.getJSONArray(index1);
-            JSONArray menu = days.getJSONArray(index2);
-            JSONArray stations = menu.getJSONArray(1);
-            JSONArray mains = stations.getJSONArray(3);
-            for (int loop = 0; loop < mains.length(); loop++) {
-                retval.add( ((JSONObject)mains.get(loop)).get("a").toString() );
+            if (index1 < cycleLength) {
+                JSONArray items = obj.getJSONObject("menu").getJSONObject("menu").getJSONArray("items");
+                JSONArray days = items.getJSONArray(index1);
+                JSONArray menu = days.getJSONArray(index2);
+                JSONArray stations = menu.getJSONArray(1);
+                JSONArray mains = stations.getJSONArray(3);
+                for (int loop = 0; loop < mains.length(); loop++) {
+                    String entree = ((JSONObject)mains.get(loop)).get("a").toString();
+                    entree = entree.replaceAll("&", "and");
+                    retval.add( entree );
+                }
+            } else {
+                String errorDate = spokenFormat.format(formatter.parse(date));
+                throw new RuntimeException("There is no menu information for " + errorDate);
             }
         } catch (JSONException | ParseException ex) {
             java.util.logging.Logger.getLogger(SRLunchSpeechlet.class.getName()).log(Level.SEVERE, null, ex);
@@ -432,6 +413,10 @@ public class SRLunchSpeechlet implements Speechlet {
         Reprompt reprompt = new Reprompt();
         reprompt.setOutputSpeech(repromptOutputSpeech);
         return SpeechletResponse.newAskResponse(outputSpeech, reprompt);
+    }
+
+    private SpeechletResponse handleNextMenuRequrest(Intent intent, Session session) {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
 }
