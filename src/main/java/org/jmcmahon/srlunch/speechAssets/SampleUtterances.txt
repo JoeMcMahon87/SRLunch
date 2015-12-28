@@ -1,0 +1,9 @@
+GetFirstEventIntent get entrees for {day}
+GetFirstEventIntent give me entrees for {day}
+GetFirstEventIntent what is being served on {day}
+GetFirstEventIntent {day}
+
+AMAZON.StopIntent no
+AMAZON.StopIntent nope
+AMAZON.StopIntent no thanks
+AMAZON.StopIntent no thank you
