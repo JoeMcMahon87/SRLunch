@@ -71,7 +71,9 @@ public class SRLunchSpeechlet implements Speechlet {
 
     private static final String SESSION_TEXT = "text";
     private static final String SESSION_STAGE = "stage";
-    
+    private static final String SESSION_MONTH = "month";
+    private static final String SESSION_DATE = "date";
+
     private static final int LOWER_SCHOOL = 0;
 
     private static final int MIDDLE_SCHOOL = 1;
@@ -214,7 +216,7 @@ public class SRLunchSpeechlet implements Speechlet {
             try {
                 date = formatter.parse(daySlot.getValue());
             } catch (ParseException ex) {
-                java.util.logging.Logger.getLogger(SRLunchSpeechlet.class.getName()).log(Level.SEVERE, null, ex);
+                throw new RuntimeException("The date given is not a date this service handles.  Try today, tomorrow or a specific month and day");
             }
         } else {
             date = new Date();
@@ -234,67 +236,22 @@ public class SRLunchSpeechlet implements Speechlet {
      * the user
      */
     private SpeechletResponse handleMenuRequest(Intent intent, Session session) {
-        Calendar calendar = getCalendar(intent);
-        String month = MONTH_NAMES[calendar.get(Calendar.MONTH)];
-        String date = formatter.format(calendar.getTime());
-
-        String speechPrefixContent = "<p>Entrees for " + month + " " + date + "</p> ";
-        String cardPrefixContent = "Entrees for " + month + " " + date + ", ";
-        String cardTitle = "For " + month + " " + date;
-        Map<String, List<String>> menuItems;
-        String speechOutput;
-
         try {
-            menuItems = getJsonMenuItemsFromSage(date);
-            if (menuItems.isEmpty()) {
-                speechOutput
-                        = "There is a problem connecting to Sage Dining at this time."
-                        + " Please try again later.";
+            Calendar calendar = getCalendar(intent);
+            String month = MONTH_NAMES[calendar.get(Calendar.MONTH)];
+            String date = formatter.format(calendar.getTime());
 
-                // Create the plain text output
-                SsmlOutputSpeech outputSpeech = new SsmlOutputSpeech();
-                outputSpeech.setSsml("<speak>" + speechOutput + "</speak>");
+            String speechPrefixContent = "<p>Entrees for " + month + " " + date + "</p> ";
+            String cardPrefixContent = "Entrees for " + month + " " + date + ", ";
+            String cardTitle = "For " + month + " " + date;
+            Map<String, List<String>> menuItems;
+            String speechOutput;
 
-                return SpeechletResponse.newTellResponse(outputSpeech);
-            } else {
-                StringBuilder speechOutputBuilder = new StringBuilder();
-                speechOutputBuilder.append(speechPrefixContent);
-                StringBuilder cardOutputBuilder = new StringBuilder();
-                cardOutputBuilder.append(cardPrefixContent);
-                if (menuItems.get("Entrees") != null) {
-                    for (String entree : menuItems.get("Entrees")) {
-                        speechOutputBuilder.append("<p>");
-                        speechOutputBuilder.append(entree);
-                        speechOutputBuilder.append("</p> ");
-                        cardOutputBuilder.append(entree);
-                        cardOutputBuilder.append("\n");
-                    }
-
-                    speechOutputBuilder.append(" Want more menu items?");
-                    cardOutputBuilder.append(" Want more menu items?");
-                    speechOutput = speechOutputBuilder.toString();
-
-                    String repromptText
-                            = "With Stone Ridge Lunch, you can get"
-                            + " the menu Sage Dining is serving at Stone Ridge"
-                            + " For example, you could say today, tomorrow, "
-                            + " or a specific date like October seventh"
-                            + " Now, which day do you want?";
-
-                    // Create the Simple card content.
-                    SimpleCard card = new SimpleCard();
-                    card.setTitle(cardTitle);
-                    card.setContent(cardOutputBuilder.toString());
-
-                    session.setAttribute(SESSION_TEXT, menuItems);
-                    session.setAttribute(SESSION_STAGE, 1);
-
-                    SpeechletResponse response = newAskResponse("<speak>" + speechOutput + "</speak>", true, repromptText, false);
-                    response.setCard(card);
-                    return response;
-                } else {
+            try {
+                menuItems = getJsonMenuItemsFromSage(date);
+                if (menuItems.isEmpty()) {
                     speechOutput
-                            = "There were no entrees found for that date"
+                            = "There is a problem connecting to Sage Dining at this time."
                             + " Please try again later.";
 
                     // Create the plain text output
@@ -302,21 +259,82 @@ public class SRLunchSpeechlet implements Speechlet {
                     outputSpeech.setSsml("<speak>" + speechOutput + "</speak>");
 
                     return SpeechletResponse.newTellResponse(outputSpeech);
+                } else {
+                    StringBuilder speechOutputBuilder = new StringBuilder();
+                    speechOutputBuilder.append(speechPrefixContent);
+                    StringBuilder cardOutputBuilder = new StringBuilder();
+                    cardOutputBuilder.append(cardPrefixContent);
+                    if (menuItems.get("Entrees") != null) {
+                        for (String entree : menuItems.get("Entrees")) {
+                            speechOutputBuilder.append("<p>");
+                            speechOutputBuilder.append(entree);
+                            speechOutputBuilder.append("</p> ");
+                            cardOutputBuilder.append(entree);
+                            cardOutputBuilder.append("\n");
+                        }
+
+                        speechOutputBuilder.append(" Want more menu items?");
+                        cardOutputBuilder.append(" Want more menu items?");
+                        speechOutput = speechOutputBuilder.toString();
+
+                        String repromptText
+                                = "With Stone Ridge Lunch, you can get"
+                                + " the menu Sage Dining is serving at Stone Ridge"
+                                + " For example, you could say today, tomorrow, "
+                                + " or a specific date like October seventh"
+                                + " Now, which day do you want?";
+
+                        // Create the Simple card content.
+                        SimpleCard card = new SimpleCard();
+                        card.setTitle(cardTitle);
+                        card.setContent(cardOutputBuilder.toString());
+
+                        session.setAttribute(SESSION_TEXT, menuItems);
+                        session.setAttribute(SESSION_STAGE, 1);
+                        session.setAttribute(SESSION_MONTH, month);
+                        session.setAttribute(SESSION_DATE, date);
+                        SpeechletResponse response = newAskResponse("<speak>" + speechOutput + "</speak>", true, repromptText, false);
+                        response.setCard(card);
+                        return response;
+                    } else {
+                        speechOutput
+                                = "There were no entrees found for that date"
+                                + " Please try again later.";
+
+                        // Create the plain text output
+                        SsmlOutputSpeech outputSpeech = new SsmlOutputSpeech();
+                        outputSpeech.setSsml("<speak>" + speechOutput + "</speak>");
+
+                        return SpeechletResponse.newTellResponse(outputSpeech);
+                    }
                 }
+            } catch (RuntimeException re) {
+                speechOutput = re.getMessage();
+
+                // Create the plain text output
+                SsmlOutputSpeech outputSpeech = new SsmlOutputSpeech();
+                outputSpeech.setSsml("<speak>" + speechOutput + "</speak>");
+                SimpleCard card = new SimpleCard();
+                card.setTitle(cardTitle);
+                card.setContent(speechOutput);
+                SpeechletResponse response = SpeechletResponse.newTellResponse(outputSpeech);
+                response.setCard(card);
+
+                return response;
             }
         } catch (RuntimeException re) {
-            speechOutput = re.getMessage();
+                String speechOutput = re.getMessage();
 
-            // Create the plain text output
-            SsmlOutputSpeech outputSpeech = new SsmlOutputSpeech();
-            outputSpeech.setSsml("<speak>" + speechOutput + "</speak>");
-            SimpleCard card = new SimpleCard();
-            card.setTitle(cardTitle);
-            card.setContent(speechOutput);
-            SpeechletResponse response = SpeechletResponse.newTellResponse(outputSpeech);
-            response.setCard(card);
+                // Create the plain text output
+                SsmlOutputSpeech outputSpeech = new SsmlOutputSpeech();
+                outputSpeech.setSsml("<speak>" + speechOutput + "</speak>");
+                SimpleCard card = new SimpleCard();
+                card.setTitle("Error processing");
+                card.setContent(speechOutput);
+                SpeechletResponse response = SpeechletResponse.newTellResponse(outputSpeech);
+                response.setCard(card);
 
-            return response;
+                return response;
         }
     }
 
@@ -370,30 +388,35 @@ public class SRLunchSpeechlet implements Speechlet {
             // Get the cycle length from the JSON
             int cycleLength = 12;
             int index = calculateOffset(menuFirstDate, date);
-            int index1 = (int) (index / 10) + 1;
+            int index1 = (int) (index / 10);
             int index2 = (int) (index % 10);
             if (index1 < cycleLength) {
-                JSONArray items = obj.getJSONObject("menu").getJSONObject("menu").getJSONArray("items");
-                JSONArray days = items.getJSONArray(index1);
-                JSONArray menu = days.getJSONArray(index2);
-                JSONArray allStations = menu.getJSONArray(1);
-                Set<Integer> stations = stationMap.keySet();
-                for (int station : stations) {
-                    JSONArray menuItems = allStations.getJSONArray(station);
-                    List<String> tempItems = new ArrayList<>();
-                    for (int loop = 0; loop < menuItems.length(); loop++) {
-                        String item = ((JSONObject) menuItems.get(loop)).get("a").toString();
-                        item = item.replaceAll("&", "and");
-                        tempItems.add(item);
+                if ((index2 > 0) && (index2 < 6)) {
+                    JSONArray items = obj.getJSONObject("menu").getJSONObject("menu").getJSONArray("items");
+                    JSONArray days = items.getJSONArray(index1);
+                    JSONArray menu = days.getJSONArray(index2);
+                    JSONArray allStations = menu.getJSONArray(1);
+                    Set<Integer> stations = stationMap.keySet();
+                    for (int station : stations) {
+                        JSONArray menuItems = allStations.getJSONArray(station);
+                        List<String> tempItems = new ArrayList<>();
+                        for (int loop = 0; loop < menuItems.length(); loop++) {
+                            String item = ((JSONObject) menuItems.get(loop)).get("a").toString();
+                            item = item.replaceAll("&", "and");
+                            tempItems.add(item);
+                        }
+                        retval.put(stationMap.get(station), tempItems);
                     }
-                    retval.put(stationMap.get(station), tempItems);
+                } else {
+                    String errorDate = spokenFormat.format(formatter.parse(date));
+                    throw new RuntimeException("Food is not served on " + errorDate);
                 }
             } else {
                 String errorDate = spokenFormat.format(formatter.parse(date));
                 throw new RuntimeException("There is no menu information for " + errorDate);
             }
         } catch (JSONException | ParseException ex) {
-            java.util.logging.Logger.getLogger(SRLunchSpeechlet.class.getName()).log(Level.SEVERE, null, ex);
+            throw new RuntimeException(date + " is not a date this service handles.  Try today, tomorrow or a specific month and day");
         }
 
         return retval;
@@ -452,13 +475,126 @@ public class SRLunchSpeechlet implements Speechlet {
 
     /**
      * Process the next group of foods
-     * 
+     *
      * @param intent
      * @param session
-     * @return 
+     * @return
      */
     private SpeechletResponse handleNextMenuRequrest(Intent intent, Session session) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-    }
+        Integer stage = (Integer) session.getAttribute(SESSION_STAGE);
+        if ((stage != null) && (stage >= 1)) {
+            String month = (String) session.getAttribute(SESSION_MONTH);
+            String date = (String) session.getAttribute(SESSION_DATE);
+            Map<String, List<String>> menuItems = (Map<String, List<String>>) session.getAttribute(SESSION_TEXT);
+            String speechOutput = "";
+            String cardOutput = "";
+            String cardTitle = "For " + month + " " + date;
+            String speechPrefixContent;
+            String cardPrefixContent;
+            StringBuilder speechOutputBuilder = new StringBuilder();
+            StringBuilder cardOutputBuilder = new StringBuilder();
 
+            switch (stage) {
+                case 1:
+                    // Process Soups
+                    speechPrefixContent = "<p>Soups for " + month + " " + date + "</p> ";
+                    cardPrefixContent = "Soups for " + month + " " + date + ", ";
+                    speechOutputBuilder.append(speechPrefixContent);
+                    cardOutputBuilder.append(cardPrefixContent);
+                    if (menuItems.get("Soups") != null) {
+                        for (String soup : menuItems.get("Soups")) {
+                            speechOutputBuilder.append("<p>");
+                            speechOutputBuilder.append(soup);
+                            speechOutputBuilder.append("</p> ");
+                            cardOutputBuilder.append(soup);
+                            cardOutputBuilder.append("\n");
+                        }
+
+                        speechOutputBuilder.append(" Want more menu items?");
+                        cardOutputBuilder.append(" Want more menu items?");
+                        session.setAttribute(SESSION_STAGE, (stage + 1));
+                        speechOutput = speechOutputBuilder.toString();
+                        cardOutput = cardOutputBuilder.toString();
+                    }
+                    break;
+                case 2:
+                    // Process Salads
+                    speechPrefixContent = "<p>Salads for " + month + " " + date + "</p> ";
+                    cardPrefixContent = "Salads for " + month + " " + date + ", ";
+                    speechOutputBuilder.append(speechPrefixContent);
+                    cardOutputBuilder.append(cardPrefixContent);
+                    if (menuItems.get("Salads") != null) {
+                        for (String salad : menuItems.get("Salads")) {
+                            speechOutputBuilder.append("<p>");
+                            speechOutputBuilder.append(salad);
+                            speechOutputBuilder.append("</p> ");
+                            cardOutputBuilder.append(salad);
+                            cardOutputBuilder.append("\n");
+                        }
+
+                        speechOutputBuilder.append(" Want more menu items?");
+                        cardOutputBuilder.append(" Want more menu items?");
+                        session.setAttribute(SESSION_STAGE, (stage + 1));
+                        speechOutput = speechOutputBuilder.toString();
+                        cardOutput = cardOutputBuilder.toString();
+                    }
+                    break;
+                case 3:
+                    // Process Deli
+                    speechPrefixContent = "<p>Deli items for " + month + " " + date + "</p> ";
+                    cardPrefixContent = "Deli items for " + month + " " + date + ", ";
+                    speechOutputBuilder.append(speechPrefixContent);
+                    cardOutputBuilder.append(cardPrefixContent);
+                    if (menuItems.get("Deli") != null) {
+                        for (String deli : menuItems.get("Deli")) {
+                            speechOutputBuilder.append("<p>");
+                            speechOutputBuilder.append(deli);
+                            speechOutputBuilder.append("</p> ");
+                            cardOutputBuilder.append(deli);
+                            cardOutputBuilder.append("\n");
+                        }
+
+                        speechOutputBuilder.append(" Want more menu items?");
+                        cardOutputBuilder.append(" Want more menu items?");
+                        session.setAttribute(SESSION_STAGE, (stage + 1));
+                        speechOutput = speechOutputBuilder.toString();
+                        cardOutput = cardOutputBuilder.toString();
+                    }
+                    break;
+                case 4:
+                    // Process Fruit and Desserts
+                    speechPrefixContent = "<p>Fruit and Dessert for " + month + " " + date + "</p> ";
+                    cardPrefixContent = "Fruit and Dessert for " + month + " " + date + ", ";
+                    speechOutputBuilder.append(speechPrefixContent);
+                    cardOutputBuilder.append(cardPrefixContent);
+                    if (menuItems.get("Fruit and Dessert") != null) {
+                        for (String fd : menuItems.get("Fruit and Dessert")) {
+                            speechOutputBuilder.append("<p>");
+                            speechOutputBuilder.append(fd);
+                            speechOutputBuilder.append("</p> ");
+                            cardOutputBuilder.append(fd);
+                            cardOutputBuilder.append("\n");
+                        }
+                        speechOutput = speechOutputBuilder.toString();
+                        cardOutput = cardOutputBuilder.toString();
+                    }
+                    break;
+                default:
+                    break;
+            }
+            String repromptText = "Do you want to know more menu items on this date?";
+
+            // Create the Simple card content.
+            SimpleCard card = new SimpleCard();
+            card.setTitle(cardTitle);
+            card.setContent(cardOutput);
+
+            SpeechletResponse response = newAskResponse("<speak>" + speechOutput + "</speak>", true, repromptText, false);
+            response.setCard(card);
+            response.setShouldEndSession((stage >= 4));
+            return response;
+        } else {
+            return getWelcomeResponse();
+        }
+    }
 }
