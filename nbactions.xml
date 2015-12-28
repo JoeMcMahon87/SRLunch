@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<actions>
+        <action>
+            <actionName>CUSTOM-AWS-Lamba</actionName>
+            <displayName>AWS-Lamba</displayName>
+            <goals>
+                <goal>assembly:assembly</goal>
+                <goal>package</goal>
+            </goals>
+            <properties>
+                <descriptorId>jar-with-dependencies</descriptorId>
+            </properties>
+        </action>
+    </actions>
