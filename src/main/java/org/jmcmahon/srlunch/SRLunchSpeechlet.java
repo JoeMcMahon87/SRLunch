@@ -51,7 +51,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.logging.Level;
 
 /**
  * Queries the Sage Dining menu for Stone Ridge School and returns back the
@@ -64,7 +63,7 @@ public class SRLunchSpeechlet implements Speechlet {
     /**
      * URL for Sage Dining menu
      */
-    private static final String URL_PREFIX = "http://www.sagedining.com/intranet/apps/mb/pubasynchhandler.php?unitId=S0073&mbMenuCardinality=1&_=1451222936630";
+    private static final String URL_PREFIX = "http://www.sagedining.com/intranet/apps/mb/pubasynchhandler.php?unitId=S0073&mbMenuCardinality=1&_=";
 
     private static final SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
     private static final SimpleDateFormat spokenFormat = new SimpleDateFormat("EEEEE MMMMM d yyyy");
@@ -73,7 +72,7 @@ public class SRLunchSpeechlet implements Speechlet {
     private static final String SESSION_STAGE = "stage";
     private static final String SESSION_MONTH = "month";
     private static final String SESSION_DATE = "date";
-
+    private static final String SESSION_DOM = "dom";
     private static final int LOWER_SCHOOL = 0;
 
     private static final int MIDDLE_SCHOOL = 1;
@@ -148,7 +147,7 @@ public class SRLunchSpeechlet implements Speechlet {
                     return handleNextMenuRequrest(intent, session);
                 case "AMAZON.HelpIntent":
                     // Create the plain text output.
-                    String speechOutput = "With Stone Ridge Lunch, you can get"
+                    String speechOutput = "With Stone Ridge Food, you can get"
                             + " the menu Sage Dining is serving at Stone Ridge"
                             + " For example, you could say today, tomorrow, "
                             + " or a specific date like October seventh"
@@ -157,6 +156,7 @@ public class SRLunchSpeechlet implements Speechlet {
                     String repromptText = "Which day do you want?";
 
                     return newAskResponse(speechOutput, false, repromptText, false);
+                case "AMAZON.StopIntent" :
                 case "AMAZON.CancelIntent": {
                     PlainTextOutputSpeech outputSpeech = new PlainTextOutputSpeech();
                     outputSpeech.setText("Goodbye");
@@ -186,10 +186,10 @@ public class SRLunchSpeechlet implements Speechlet {
      * the user
      */
     private SpeechletResponse getWelcomeResponse() {
-        String speechOutput = "Stone Ridge Lunch. For which day do you want the menu?";
+        String speechOutput = "Stone Ridge Food. For which day do you want the menu?";
         // If the user either does not reply to the welcome message or says something that is not
         // understood, they will be prompted again with this text.
-        String repromptText = "With Stone Ridge Lunch, you can get"
+        String repromptText = "With Stone Ridge Food, you can get"
                 + " the menu Sage Dining is serving at Stone Ridge"
                 + " For example, you could say today, tomorrow, "
                 + " or a specific date like October seventh"
@@ -216,7 +216,9 @@ public class SRLunchSpeechlet implements Speechlet {
             try {
                 date = formatter.parse(daySlot.getValue());
             } catch (ParseException ex) {
-                throw new RuntimeException("The date given is not a date this service handles.  Try today, tomorrow or a specific month and day");
+                throw new RuntimeException("The date given is not a date this service handles."
+                        + " Try today, tomorrow or a specific month and day.  Now, for what"
+                        + " day do you want to hear the menu items?");
             }
         } else {
             date = new Date();
@@ -240,9 +242,10 @@ public class SRLunchSpeechlet implements Speechlet {
             Calendar calendar = getCalendar(intent);
             String month = MONTH_NAMES[calendar.get(Calendar.MONTH)];
             String date = formatter.format(calendar.getTime());
-
-            String speechPrefixContent = "<p>Entrees for " + month + " " + date + "</p> ";
-            String cardPrefixContent = "Entrees for " + month + " " + date + ", ";
+            String dayOfMonth = String.valueOf(calendar.get(Calendar.DAY_OF_MONTH));
+            
+            String speechPrefixContent = "<p>Entrees for " + month + " " + dayOfMonth + "</p> ";
+            String cardPrefixContent = "Entrees for " + month + " " + dayOfMonth + ", ";
             String cardTitle = "For " + month + " " + date;
             Map<String, List<String>> menuItems;
             String speechOutput;
@@ -278,7 +281,7 @@ public class SRLunchSpeechlet implements Speechlet {
                         speechOutput = speechOutputBuilder.toString();
 
                         String repromptText
-                                = "With Stone Ridge Lunch, you can get"
+                                = "With Stone Ridge Food, you can get"
                                 + " the menu Sage Dining is serving at Stone Ridge"
                                 + " For example, you could say today, tomorrow, "
                                 + " or a specific date like October seventh"
@@ -293,6 +296,7 @@ public class SRLunchSpeechlet implements Speechlet {
                         session.setAttribute(SESSION_STAGE, 1);
                         session.setAttribute(SESSION_MONTH, month);
                         session.setAttribute(SESSION_DATE, date);
+                        session.setAttribute(SESSION_DOM, dayOfMonth);
                         SpeechletResponse response = newAskResponse("<speak>" + speechOutput + "</speak>", true, repromptText, false);
                         response.setCard(card);
                         return response;
@@ -319,6 +323,7 @@ public class SRLunchSpeechlet implements Speechlet {
                 card.setContent(speechOutput);
                 SpeechletResponse response = SpeechletResponse.newTellResponse(outputSpeech);
                 response.setCard(card);
+                response.setShouldEndSession(false);
 
                 return response;
             }
@@ -333,6 +338,7 @@ public class SRLunchSpeechlet implements Speechlet {
                 card.setContent(speechOutput);
                 SpeechletResponse response = SpeechletResponse.newTellResponse(outputSpeech);
                 response.setCard(card);
+                response.setShouldEndSession(false);
 
                 return response;
         }
@@ -351,7 +357,8 @@ public class SRLunchSpeechlet implements Speechlet {
         String text = "";
         try {
             String line;
-            URL url = new URL(URL_PREFIX);
+            Long curTime = System.currentTimeMillis();
+            URL url = new URL(URL_PREFIX + String.valueOf(curTime));
             inputStream = new InputStreamReader(url.openStream(), Charset.forName("US-ASCII"));
             bufferedReader = new BufferedReader(inputStream);
             StringBuilder builder = new StringBuilder();
@@ -409,14 +416,21 @@ public class SRLunchSpeechlet implements Speechlet {
                     }
                 } else {
                     String errorDate = spokenFormat.format(formatter.parse(date));
-                    throw new RuntimeException("Food is not served on " + errorDate);
+                    throw new RuntimeException("Food is not served on " + errorDate +
+                            ".  For what day would you like to hear menu items?");
                 }
             } else {
+                Long endDate = (cycleLength * 7 * 24 * 60 * 60 * 1000) + menuFirstDate;
                 String errorDate = spokenFormat.format(formatter.parse(date));
-                throw new RuntimeException("There is no menu information for " + errorDate);
+                throw new RuntimeException("There is no menu information for " + errorDate +
+                        ".  Menu information is only available through " +
+                        spokenFormat.format(new Date(endDate)) + ".  For what day"
+                        + " would you like to hear menu items?");
             }
         } catch (JSONException | ParseException ex) {
-            throw new RuntimeException(date + " is not a date this service handles.  Try today, tomorrow or a specific month and day");
+            throw new RuntimeException(date + " is not a date this service handles."
+                    + " Try today, tomorrow or a specific month and day.  For"
+                    + " what day would you like to hear the menu?");
         }
 
         return retval;
@@ -485,6 +499,7 @@ public class SRLunchSpeechlet implements Speechlet {
         if ((stage != null) && (stage >= 1)) {
             String month = (String) session.getAttribute(SESSION_MONTH);
             String date = (String) session.getAttribute(SESSION_DATE);
+            String dayOfMonth = (String) session.getAttribute(SESSION_DOM);
             Map<String, List<String>> menuItems = (Map<String, List<String>>) session.getAttribute(SESSION_TEXT);
             String speechOutput = "";
             String cardOutput = "";
@@ -497,8 +512,8 @@ public class SRLunchSpeechlet implements Speechlet {
             switch (stage) {
                 case 1:
                     // Process Soups
-                    speechPrefixContent = "<p>Soups for " + month + " " + date + "</p> ";
-                    cardPrefixContent = "Soups for " + month + " " + date + ", ";
+                    speechPrefixContent = "<p>Soups for " + month + " " + dayOfMonth + "</p> ";
+                    cardPrefixContent = "Soups for " + month + " " + dayOfMonth + ", ";
                     speechOutputBuilder.append(speechPrefixContent);
                     cardOutputBuilder.append(cardPrefixContent);
                     if (menuItems.get("Soups") != null) {
@@ -519,8 +534,8 @@ public class SRLunchSpeechlet implements Speechlet {
                     break;
                 case 2:
                     // Process Salads
-                    speechPrefixContent = "<p>Salads for " + month + " " + date + "</p> ";
-                    cardPrefixContent = "Salads for " + month + " " + date + ", ";
+                    speechPrefixContent = "<p>Salads for " + month + " " + dayOfMonth + "</p> ";
+                    cardPrefixContent = "Salads for " + month + " " + dayOfMonth + ", ";
                     speechOutputBuilder.append(speechPrefixContent);
                     cardOutputBuilder.append(cardPrefixContent);
                     if (menuItems.get("Salads") != null) {
@@ -541,8 +556,8 @@ public class SRLunchSpeechlet implements Speechlet {
                     break;
                 case 3:
                     // Process Deli
-                    speechPrefixContent = "<p>Deli items for " + month + " " + date + "</p> ";
-                    cardPrefixContent = "Deli items for " + month + " " + date + ", ";
+                    speechPrefixContent = "<p>Deli items for " + month + " " + dayOfMonth + "</p> ";
+                    cardPrefixContent = "Deli items for " + month + " " + dayOfMonth + ", ";
                     speechOutputBuilder.append(speechPrefixContent);
                     cardOutputBuilder.append(cardPrefixContent);
                     if (menuItems.get("Deli") != null) {
@@ -563,8 +578,8 @@ public class SRLunchSpeechlet implements Speechlet {
                     break;
                 case 4:
                     // Process Fruit and Desserts
-                    speechPrefixContent = "<p>Fruit and Dessert for " + month + " " + date + "</p> ";
-                    cardPrefixContent = "Fruit and Dessert for " + month + " " + date + ", ";
+                    speechPrefixContent = "<p>Fruit and Dessert for " + month + " " + dayOfMonth + "</p> ";
+                    cardPrefixContent = "Fruit and Dessert for " + month + " " + dayOfMonth + ", ";
                     speechOutputBuilder.append(speechPrefixContent);
                     cardOutputBuilder.append(cardPrefixContent);
                     if (menuItems.get("Fruit and Dessert") != null) {

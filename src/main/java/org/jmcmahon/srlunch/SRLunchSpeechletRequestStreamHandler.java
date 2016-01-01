@@ -33,6 +33,7 @@ public class SRLunchSpeechletRequestStreamHandler extends SpeechletRequestStream
          */
         supportedApplicationIds = new HashSet<String>();
         supportedApplicationIds.add("amzn1.echo-sdk-ams.app.f6f4f385-5119-4bbe-847e-b17cb98122eb");
+        supportedApplicationIds.add("amzn1.echo-sdk-ams.app.b85678fb-836a-4085-afe5-279778e4144f");
     }
 
     public SRLunchSpeechletRequestStreamHandler() {

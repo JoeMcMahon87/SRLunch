@@ -3,13 +3,21 @@ GetMenuIntent what is being served on {day}
 GetMenuIntent for the menu on {day}
 GetMenuIntent {day}
 GetMenuIntent the menu for {day}
+GetMenuIntent the menu on {day}
+GetMenuIntent what are they serving today
+GetMenuIntent what are they serving on {day}
+GetMenuIntent what's for lunch today
+GetMenuIntent what's for lunch on {day}
 
 GetNextMenuIntent yes
 GetNextMenuIntent yup
 GetNextMenuIntent sure
 GetNextMenuIntent yes please
+GetNextMenuIntent please
+GetNextMenuIntent continue
 
 AMAZON.StopIntent no
 AMAZON.StopIntent nope
 AMAZON.StopIntent no thanks
 AMAZON.StopIntent no thank you
+AMAZON.StopIntent stop
