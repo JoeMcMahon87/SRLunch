@@ -260,8 +260,9 @@ public class SRLunchSpeechlet implements Speechlet {
                     // Create the plain text output
                     SsmlOutputSpeech outputSpeech = new SsmlOutputSpeech();
                     outputSpeech.setSsml("<speak>" + speechOutput + "</speak>");
-
-                    return SpeechletResponse.newTellResponse(outputSpeech);
+                    SpeechletResponse response = SpeechletResponse.newTellResponse(outputSpeech);
+                    response.setShouldEndSession(true);
+                    return response;
                 } else {
                     StringBuilder speechOutputBuilder = new StringBuilder();
                     speechOutputBuilder.append(speechPrefixContent);
@@ -276,16 +277,13 @@ public class SRLunchSpeechlet implements Speechlet {
                             cardOutputBuilder.append("\n");
                         }
 
-                        speechOutputBuilder.append(" Want more menu items?");
-                        cardOutputBuilder.append(" Want more menu items?");
+                        speechOutputBuilder.append(" Want to hear more menu items?");
+                        cardOutputBuilder.append(" Want to hear more menu items?");
                         speechOutput = speechOutputBuilder.toString();
 
-                        String repromptText
-                                = "With Stone Ridge Food, you can get"
-                                + " the menu Sage Dining is serving at Stone Ridge"
-                                + " For example, you could say today, tomorrow, "
-                                + " or a specific date like October seventh"
-                                + " Now, which day do you want?";
+                        String repromptText = "More menu items include soups, salads,"
+                                + " deli items, and desserts.  Do you want to hear"
+                                + " more menu items?";
 
                         // Create the Simple card content.
                         SimpleCard card = new SimpleCard();
@@ -299,6 +297,7 @@ public class SRLunchSpeechlet implements Speechlet {
                         session.setAttribute(SESSION_DOM, dayOfMonth);
                         SpeechletResponse response = newAskResponse("<speak>" + speechOutput + "</speak>", true, repromptText, false);
                         response.setCard(card);
+                        response.setShouldEndSession(false);
                         return response;
                     } else {
                         speechOutput
@@ -308,8 +307,9 @@ public class SRLunchSpeechlet implements Speechlet {
                         // Create the plain text output
                         SsmlOutputSpeech outputSpeech = new SsmlOutputSpeech();
                         outputSpeech.setSsml("<speak>" + speechOutput + "</speak>");
-
-                        return SpeechletResponse.newTellResponse(outputSpeech);
+                        SpeechletResponse response = SpeechletResponse.newTellResponse(outputSpeech);
+                        response.setShouldEndSession(true);
+                        return response;
                     }
                 }
             } catch (RuntimeException re) {
@@ -501,8 +501,8 @@ public class SRLunchSpeechlet implements Speechlet {
             String date = (String) session.getAttribute(SESSION_DATE);
             String dayOfMonth = (String) session.getAttribute(SESSION_DOM);
             Map<String, List<String>> menuItems = (Map<String, List<String>>) session.getAttribute(SESSION_TEXT);
-            String speechOutput = "";
-            String cardOutput = "";
+            String speechOutput;
+            String cardOutput;
             String cardTitle = "For " + month + " " + date;
             String speechPrefixContent;
             String cardPrefixContent;
@@ -524,12 +524,6 @@ public class SRLunchSpeechlet implements Speechlet {
                             cardOutputBuilder.append(soup);
                             cardOutputBuilder.append("\n");
                         }
-
-                        speechOutputBuilder.append(" Want more menu items?");
-                        cardOutputBuilder.append(" Want more menu items?");
-                        session.setAttribute(SESSION_STAGE, (stage + 1));
-                        speechOutput = speechOutputBuilder.toString();
-                        cardOutput = cardOutputBuilder.toString();
                     }
                     break;
                 case 2:
@@ -546,12 +540,6 @@ public class SRLunchSpeechlet implements Speechlet {
                             cardOutputBuilder.append(salad);
                             cardOutputBuilder.append("\n");
                         }
-
-                        speechOutputBuilder.append(" Want more menu items?");
-                        cardOutputBuilder.append(" Want more menu items?");
-                        session.setAttribute(SESSION_STAGE, (stage + 1));
-                        speechOutput = speechOutputBuilder.toString();
-                        cardOutput = cardOutputBuilder.toString();
                     }
                     break;
                 case 3:
@@ -568,12 +556,6 @@ public class SRLunchSpeechlet implements Speechlet {
                             cardOutputBuilder.append(deli);
                             cardOutputBuilder.append("\n");
                         }
-
-                        speechOutputBuilder.append(" Want more menu items?");
-                        cardOutputBuilder.append(" Want more menu items?");
-                        session.setAttribute(SESSION_STAGE, (stage + 1));
-                        speechOutput = speechOutputBuilder.toString();
-                        cardOutput = cardOutputBuilder.toString();
                     }
                     break;
                 case 4:
@@ -590,13 +572,19 @@ public class SRLunchSpeechlet implements Speechlet {
                             cardOutputBuilder.append(fd);
                             cardOutputBuilder.append("\n");
                         }
-                        speechOutput = speechOutputBuilder.toString();
-                        cardOutput = cardOutputBuilder.toString();
                     }
                     break;
                 default:
                     break;
             }
+            
+            if (stage < 4) {
+                speechOutputBuilder.append(" Want to hear more menu items?");
+                cardOutputBuilder.append(" Want to hear more menu items?");
+                session.setAttribute(SESSION_STAGE, (stage + 1));
+            }
+            speechOutput = speechOutputBuilder.toString();
+            cardOutput = cardOutputBuilder.toString();
             String repromptText = "Do you want to know more menu items on this date?";
 
             // Create the Simple card content.
