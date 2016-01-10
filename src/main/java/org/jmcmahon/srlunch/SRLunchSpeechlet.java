@@ -26,8 +26,7 @@ import java.util.Calendar;
 import java.util.Date;
 
 import org.apache.commons.io.IOUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.log4j.Logger;
 
 import com.amazon.speech.slu.Intent;
 import com.amazon.speech.slu.Slot;
@@ -58,7 +57,7 @@ import java.util.Set;
  */
 public class SRLunchSpeechlet implements Speechlet {
 
-    private static final Logger log = LoggerFactory.getLogger(SRLunchSpeechlet.class);
+    private static final Logger log = Logger.getLogger(SRLunchSpeechlet.class);
 
     /**
      * URL for Sage Dining menu
@@ -77,6 +76,8 @@ public class SRLunchSpeechlet implements Speechlet {
 
     private static final int MIDDLE_SCHOOL = 1;
 
+    private static final long OFFSET = 61200;
+    
     private static final Map<Integer, String> stationMap = new HashMap<>();
 
     /**
@@ -115,7 +116,7 @@ public class SRLunchSpeechlet implements Speechlet {
     @Override
     public void onSessionStarted(final SessionStartedRequest request, final Session session)
             throws SpeechletException {
-        log.info("onSessionStarted requestId={}, sessionId={}", request.getRequestId(),
+        log.info("onSessionStarted requestId=" + request.getRequestId() + ", sessionId=" +
                 session.getSessionId());
 
         // any initialization logic goes here
@@ -124,7 +125,7 @@ public class SRLunchSpeechlet implements Speechlet {
     @Override
     public SpeechletResponse onLaunch(final LaunchRequest request, final Session session)
             throws SpeechletException {
-        log.info("onLaunch requestId={}, sessionId={}", request.getRequestId(),
+        log.info("onLaunch requestId="+request.getRequestId()+ ", sessionId=" +
                 session.getSessionId());
 
         return getWelcomeResponse();
@@ -133,7 +134,7 @@ public class SRLunchSpeechlet implements Speechlet {
     @Override
     public SpeechletResponse onIntent(final IntentRequest request, final Session session)
             throws SpeechletException {
-        log.info("onIntent requestId={}, sessionId={}", request.getRequestId(),
+        log.info("onIntent requestId=" + request.getRequestId() + ", sessionId=" +
                 session.getSessionId());
 
         Intent intent = request.getIntent();
@@ -173,7 +174,7 @@ public class SRLunchSpeechlet implements Speechlet {
     @Override
     public void onSessionEnded(final SessionEndedRequest request, final Session session)
             throws SpeechletException {
-        log.info("onSessionEnded requestId={}, sessionId={}", request.getRequestId(),
+        log.info("onSessionEnded requestId=" + request.getRequestId() + ", sessionId=" +
                 session.getSessionId());
 
         // any session cleanup logic would go here
@@ -391,7 +392,7 @@ public class SRLunchSpeechlet implements Speechlet {
         Map<String, List<String>> retval = new HashMap<>();
         try {
             JSONObject obj = new JSONObject(text);
-            Long menuFirstDate = ((JSONObject) obj.getJSONArray("menuList").get(MIDDLE_SCHOOL)).getLong("menuFirstDate");
+            Long menuFirstDate = ((JSONObject) obj.getJSONArray("menuList").get(MIDDLE_SCHOOL)).getLong("menuFirstDate") - OFFSET;
             // Get the cycle length from the JSON
             int cycleLength = 12;
             int index = calculateOffset(menuFirstDate, date);
@@ -420,11 +421,11 @@ public class SRLunchSpeechlet implements Speechlet {
                             ".  For what day would you like to hear menu items?");
                 }
             } else {
-                Long endDate = (cycleLength * 7 * 24 * 60 * 60 * 1000) + menuFirstDate;
+                Long endDate = (cycleLength * 7 * 24 * 60 * 60) + menuFirstDate;
                 String errorDate = spokenFormat.format(formatter.parse(date));
                 throw new RuntimeException("There is no menu information for " + errorDate +
                         ".  Menu information is only available through " +
-                        spokenFormat.format(new Date(endDate)) + ".  For what day"
+                        spokenFormat.format(new Date(endDate * 1000)) + ".  For what day"
                         + " would you like to hear menu items?");
             }
         } catch (JSONException | ParseException ex) {
@@ -582,6 +583,9 @@ public class SRLunchSpeechlet implements Speechlet {
                 speechOutputBuilder.append(" Want to hear more menu items?");
                 cardOutputBuilder.append(" Want to hear more menu items?");
                 session.setAttribute(SESSION_STAGE, (stage + 1));
+            } else {
+                speechOutputBuilder.append(" That is the end of the menu.");
+                cardOutputBuilder.append(" That is the end of the menu.");
             }
             speechOutput = speechOutputBuilder.toString();
             cardOutput = cardOutputBuilder.toString();
